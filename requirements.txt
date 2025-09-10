@@ -1,11 +1,14 @@
+
+# Core
 streamlit
-ultralytics
-Pillow
-opencv-python-headless>=4.5.0
-numpy
 streamlit-webrtc
+numpy
+pillow
 
+# Computer Vision
+opencv-python-headless
+ultralytics
 
+# Optional if you want to handle videos from YouTube (remove if not needed)
 pafy
-youtube_dl
-
+youtube-dl
