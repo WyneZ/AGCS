@@ -39,7 +39,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Default paths
-DETECTION_MODEL = 'weights/yoloooo.pt'
+DETECTION_MODEL = 'weights/best.pt'
 DEFAULT_IMAGE = 'images/def.jfif'
 SOURCES_LIST = ["Image", "Webcam (Snapshot)", "Webcam (Live)", "Video"]
 
