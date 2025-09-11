@@ -2,7 +2,6 @@
 from pathlib import Path
 import PIL
 import cv2
-import av
 # import pafy  # disable if not used
 # import pickle
 
@@ -10,7 +9,7 @@ import av
 import streamlit as st
 from ultralytics import YOLO
 import numpy as np
-from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, WebRtcMode
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
 
 # Setting page layout
 st.set_page_config(
@@ -100,39 +99,22 @@ def play_webcam_snapshot(conf, model):
         # Display detection metrics
         display_detection_metrics(results, model)
 
-# --- Custom Video Processor for WebRTC ---
-class YOLOVideoProcessor(VideoProcessorBase):
+# --- Webcam Live Mode (streamlit-webrtc) ---
+class VideoTransformer(VideoTransformerBase):
     def __init__(self, model, conf):
         self.model = model
         self.conf = conf
-        
-    def recv(self, frame):
+    def transform(self, frame):
         img = frame.to_ndarray(format="bgr24")
-        
-        # Perform detection
-        results = self.model.predict(img, conf=self.conf, verbose=False)
-        
-        # Draw bounding boxes
-        annotated_frame = results[0].plot()
-        
-        return av.VideoFrame.from_ndarray(annotated_frame, format="bgr24")
+        results = self.model.predict(img, conf=self.conf)
+        return results[0].plot()
 
-# --- Webcam Live Mode (streamlit-webrtc) ---
 def play_webcam_live(conf, model):
     st.info("🎥 Live webcam detection (requires browser permission)")
-    
-    # Create the video processor with our model
-    ctx = webrtc_streamer(
-        key="yolo-live-detection",
-        mode=WebRtcMode.SENDRECV,
-        video_processor_factory=lambda: YOLOVideoProcessor(model, conf),
-        media_stream_constraints={"video": True, "audio": False},
-        async_processing=True,
+    webrtc_streamer(
+        key="example",
+        video_transformer_factory=lambda: VideoTransformer(model, conf)
     )
-    
-    if ctx.video_processor:
-        ctx.video_processor.model = model
-        ctx.video_processor.conf = conf
 
 # --- Video File Detection ---
 def handle_video_detection(conf, model):
@@ -235,12 +217,12 @@ if source_radio == "Image":
             
             # Display detection metrics
             display_detection_metrics(results, model2)
-    # else:
-        # try:
-        #     default_image = PIL.Image.open(DEFAULT_IMAGE)
-        #     st.image(default_image, caption="Example Image", use_container_width=True)
-        # except:
-        #     st.error("Error loading default image.")
+    else:
+        try:
+            default_image = PIL.Image.open(DEFAULT_IMAGE)
+            st.image(default_image, caption="Example Image", use_container_width=True)
+        except:
+            st.error("Error loading default image.")
 
 elif source_radio == "Live":
     st.markdown('<div class="sub-header">Webcam Live Stream</div>', unsafe_allow_html=True)
