@@ -31,7 +31,6 @@ st.markdown("""
                 border-left: 5px solid #37A67A; font-size: 1.1rem; color: #004D73; }
     .stButton button { background-color: #004D73; color: white; border-radius: 5px; padding: 0.5rem 1rem;
                        border: none; width: 100%; font-size: 1.1rem; }
-    .stButton button:hover { background-color: #FFC107; color: #004D73; }
     .metric-card { background-color: #F0F4F7; padding: 15px; border-radius: 10px; text-align: center;
                    box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin: 10px 0; border-left: 5px solid #004D73; }
     .metric-value { font-size: 2rem; font-weight: bold; color: #37A67A; }
@@ -51,12 +50,12 @@ def load_model(model_path):
         model = YOLO(model_path)
         return model
     except Exception as e:
-        st.sidebar.error(f"Error loading model: {e}")
+        st.error(f"Error loading model {model_path}: {e}")
         return None
 
 def _display_detected_frames(conf, model, st_frame, image, is_display_tracking=False, tracker=None):
     image = cv2.resize(image, (720, int(720 * (9 / 16))))
-    results = model.predict(image, conf=conf)
+    results = model.predict(image, conf=conf, verbose=False)
     res_plotted = results[0].plot()
     st_frame.image(res_plotted, caption='Detected Video', channels="BGR", use_container_width=True)
     return results  # Return results for metrics
@@ -92,7 +91,7 @@ def play_webcam_snapshot(conf, model):
         bytes_data = img_file_buffer.getvalue()
         cv2_img = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
 
-        results = model.predict(cv2_img, conf=conf)
+        results = model.predict(cv2_img, conf=conf, verbose=False)
         res_plotted = results[0].plot()[:, :, ::-1]
 
         st.image(res_plotted, caption="Detected Objects", use_container_width=True)
@@ -118,8 +117,14 @@ class YOLOVideoProcessor(VideoProcessorBase):
         return av.VideoFrame.from_ndarray(annotated_frame, format="bgr24")
 
 # --- Webcam Live Mode (streamlit-webrtc) ---
-def play_webcam_live(conf, model):
+def play_webcam_live(conf):
     st.info("🎥 Live webcam detection (requires browser permission)")
+    
+    # Load the model only when needed
+    model = load_model(Path(DETECTION_MODEL))
+    if model is None:
+        st.error("Failed to load model for live detection")
+        return
     
     # Create the video processor with our model
     ctx = webrtc_streamer(
@@ -135,7 +140,13 @@ def play_webcam_live(conf, model):
         ctx.video_processor.conf = conf
 
 # --- Video File Detection ---
-def handle_video_detection(conf, model):
+def handle_video_detection(conf):
+    # Load the model only when needed
+    model = load_model(Path(DETECTION_MODEL2))
+    if model is None:
+        st.error("Failed to load model for video detection")
+        return
+        
     video_file = st.sidebar.file_uploader("Upload a video...", type=["mp4", "mov", "avi"])
     if video_file:
         st.video(video_file)
@@ -210,47 +221,40 @@ st.markdown("""
 st.sidebar.markdown('<div class="sub-header">Model Settings</div>', unsafe_allow_html=True)
 confidence = float(st.sidebar.slider("Confidence", 25, 100, 40)) / 100
 
-# Load both models
-model = load_model(Path(DETECTION_MODEL))
-model2 = load_model(Path(DETECTION_MODEL2))  # Load the second model
-
-if model is None or model2 is None:
-    st.stop()
-
 st.sidebar.markdown('<div class="sub-header">Source</div>', unsafe_allow_html=True)
 source_radio = st.sidebar.radio("Select Source", SOURCES_LIST)
 
 if source_radio == "Image":
     st.markdown('<div class="sub-header">Image Detection</div>', unsafe_allow_html=True)
+    
+    # Load the model only when needed
+    model = load_model(Path(DETECTION_MODEL2))
+    if model is None:
+        st.error("Failed to load model for image detection")
+        st.stop()
+        
     source_img = st.file_uploader("Upload an image...", type=("jpg","jpeg","png","bmp","webp"))
     if source_img is not None:
         uploaded_image = PIL.Image.open(source_img)
         st.image(uploaded_image, caption="Uploaded Image", use_container_width=True)
         
-        # Use the second model (yoloooo) for image detection
         if st.button('Detect Objects', key="detect_objects"):
-            results = model2.predict(uploaded_image, conf=confidence)
+            results = model.predict(uploaded_image, conf=confidence, verbose=False)
             res_plotted = results[0].plot()[:, :, ::-1]
             st.image(res_plotted, caption='Detected Objects', use_container_width=True)
             
             # Display detection metrics
-            display_detection_metrics(results, model2)
-    # else:
-        # try:
-        #     default_image = PIL.Image.open(DEFAULT_IMAGE)
-        #     st.image(default_image, caption="Example Image", use_container_width=True)
-        # except:
-        #     st.error("Error loading default image.")
+            display_detection_metrics(results, model)
 
 elif source_radio == "Live":
     st.markdown('<div class="sub-header">Webcam Live Stream</div>', unsafe_allow_html=True)
     # Use the original model for live webcam
-    play_webcam_live(confidence, model)
+    play_webcam_live(confidence)
 
 elif source_radio == "Video":
     st.markdown('<div class="sub-header">Video Detection</div>', unsafe_allow_html=True)
-    # Use the second model (yoloooo) for video detection
-    handle_video_detection(confidence, model2)
+    # Use the second model for video detection
+    handle_video_detection(confidence)
 
 # Footer
 st.markdown("---")
